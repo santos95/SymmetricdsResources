@@ -1,0 +1,241 @@
+#DESCARGAR E INSTALAR SYMMETRIC 
+# Descargar e instalar symmetric 
+https://symmetricds.org/
+
+# copy the zip file with symmetric into the server with some 
+  program like wincp 
+
+# once the zip file is in the server
+unzip symmetric...zip 
+
+# move the unzip folter with symmetric into /opt/symmetricds 
+sudo mv symmetric-server-3.9.15 /opt.symmetricds 
+
+# at this point all neccesary files are in the server 
+
+# enter into the postgres commandline
+sudo psql -U postgres -w -h 127.0.0.1
+
+\c replicacion 
+
+\dn - list all schemas that exists in the database
+
+---------------------------------------------------------------------------------------------------------
+# CONFIGURAR Y AGREGAR EL NODO MAESTRO 
+
+- se procede a configurar el engine maestro 
+
+# al levantar el servicio de symmetric con el primer engine se crean todos las tablas
+# hasta este punto se encuentra vacio el esquema de symmetric
+
+# 1 crear maestro.properties 
+ - cd /opt/symmetricsds/engine
+
+- touch maestro.properties -- extension para los engines
+
+# 2 modificar el archivo y establecer las propiedades
+engine.name=publicador
+external.id=publicador
+group.id=publicador -- como es el primer nodo crea un grupo llamado publicador al crear el servicio
+syn.url=  --utiliza el ip debido a que no tiene dom - symetric utiliza por defecto el puerto 31415
+syn.url=http://192.160.0.15:31415/sync/$(engineName) --utiliza una variable de entorno
+registration-url=  --vacio indicando que se trata del maestro
+
+db.url=jdbc:postgresql://localhost:5232/replicacion
+db.driver=org.postgresql.Driver
+db.user=symmetric_user
+db.password=123456
+
+auto.registration=true  -- se deja esa propiedad abierta
+que cualqueir nodo que queira registrarse va a ser registrado 
+y va a obtener la configuracion y recibir la informacion 
+
+auto.reload=true - para la recarga de info - no es neceario en todos los maestros
+
+// asi quedaron en el properties
+engine.name=publicador
+external.id=publicador
+group.id=publicador
+syn.url=http://127.0.0.1:31415/sync/$(engineName)
+registration.url=
+
+db.url=jdbc:postgresql://localhost:5432/replicacion
+db.driver=org.postgresql.Driver
+db.user=symmetric_user
+db.password=123456
+
+auto.registration=true
+auto.reload=true
+
+# esos son en su mayoria los parametros requeridos para definir el engine maestro
+
+# para probar si se ha configurado adecuadamente 
+-utilizar el sym para probar 
+ -cd /opt/symmetricds 
+ - sudo ./syn 
+
+ -- Si levanta bien symmetric reconoce la base de datos, se conecta y asi 
+ igualmente si no existe crea las tablas en el esquema symmetric 
+ --la creacion del usuario symmetric con permisos para el esquema de symmetric 
+ permite que esas tablas sean creadas especificamente en ese esquema
+ -- Prompt datos del nodo publicador 
+
+ # Tablas a tener presente
+ SELECT * FROM summetricds.syn_node - informacion del node - nombre, grupo, etc 
+ SELECT * FROM symmetricds.syn_node_group - datos de los grupos
+ SELECT * FROM symmetricds.syn_node_security - Hash password para autenticadion entre nodos 
+ SELECT * FROM symmetricds.syn_node_identity
+
+----------------------------------------------------------------------------------------------------------
+ # CONFIGURAR EL PRIMER SUSCRIPTOR
+
+ -- CREAR UNA NUEVA BASE DE DATOS 
+ nombre - respaldo 
+ via script o pgadmin 
+
+ -- CREAR UN ESQUEMA PARA symmetricds
+ via script o con el pgadmin 
+
+ -- Crear usuario - con Rol Superuser 
+ nombre - symmetric_node - El rol superuser es requerido para que pueda generar su objetos symmetric 
+ debido a que genera triggers y otros que requeiren ese rol 
+
+ -- Asigna el rol al esquema symmetric 
+ALTER USER symmetric_nodo SET search_path TO symmetricds;
+
+-- Configurar el engine para el user 
+ - cd /opt/symetricds/engine 
+
+ - nano nodo1.properties - archivo engine para el nodo 
+
+ # configuracion properties 
+ engine.name=nodo1 
+ external.id=nodo1 
+ group.id=nodos_pg 
+
+-- como esta en la misma base - usa variable de entorno
+ sync.url=http://$(hostName):31415/sync/$(engineName)
+ registration.url=http://127.0.0.1:31415/sync/publicador -- si existiese servidor.dom 
+
+db.url=jdbc:postgresql://localhost:5432/respaldo
+db.driver=org.postgresql.Driver 
+db.user=symmetric_nodo 
+db.password=123456
+
+ # al final las propiedades 
+engine.name=nodo1
+external.id=nodo1
+group.id=nodos_pg
+syn.url=http://$(hostName):31415/sync/$(engineName)
+registration.url=http://127.0.0.1:31415/sync/publicador
+
+db.url=jdbc:postgresql://localhost:5432/respaldo
+db.driver=org.postgresql.Driver
+db.user=symmetric_nodo
+db.passowrd=123456
+
+
+# creado el engine se tiene que crear el grupo y el nodo en la base de datos 
+ o sea un agregar un nodo que pertenezca a otro grupo
+
+ * se procede a crear el grupo y las entradas en la base para el nuevo nodo
+  pero la necesidad es porque se esta creando un nuevo grupo 
+  - si es otro nodo mas se agregaria al mismo grupo 
+
+   * 1 - Nos vamos a replicacion - publicador 
+
+   SELECT * FROM symetricds.sym_node_group 
+
+   -- solo veriamos un solo grupo - publicador 
+   por tanto se debe agregar el nuevo grupo
+
+   * inserta en nuevo grupo 
+INSERT INTO symmetricds.sym_node_group(node_group_id)
+SELECT *
+FROM (
+VALUES ('nodos_pg')
+) GRUPO (node_group_id)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM symmetricds.sym_node_group ng
+    WHERE ng.node_group_id = GRUPO.node_group_id
+);
+
+# el proceso solo se realiza cuando se crea un nuevo grupo para nodos 
+en este caso un grupo para un grupo de suscriptores - por base de datos
+
+# 2 se procede a insertar los datos del nodo1 en la tabla sym_nodo 
+
+INSERT INTO symmetricds.sym_node (node_id, node_group_id, external_id)
+SELECT
+    *
+FROM (
+    VALUES('nodo1', 'nodos_pg', 'nodo1')
+     ) NODO1 (node_id, node_group_id, external_id)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_node SN
+    WHERE SN.node_id = NODO1.node_id
+);
+
+# 3 se levanta el servicio para verificar que se creen las tablas en el esquema symmetric en la base respaldo del nodo1 
+asi como la correspondiente insercion de los datos y que symmetric reconozca el nodo1 y se conecte a la base para ese nodo
+
+-sudo ./sym
+
+-- va a dar error respecto al group link 
+por tanto debido a eso no lo va a poder registrar
+
+Group link :
+-manera en que symmetric procesa 
+-Nodo trata de registrarse cada cierto tiempo 
+
+-Indica como va a trabajar la informacion del publicador a los nodos o grupos 
+
+Tipos de Group links:
+-waitToPush - Publicador hacia nodos - 
+info tiene que viajar en waitToPush, el publicador debe esperar a que el nodo este activo (suscriptor)
+para enviar la informacion
+-pull - En esta configuracion el nodo o susbcriptor envia informacion al publicador 
+
+# error 
+ Please add a group link where the source group id is publicador and the target group id is nodos_pg 
+
+ # Por tanto se procede a crear el group link 
+ # Crear el group link 
+
+ # # cada una de estas configuraciones como agregar el grupo, grupolinks y asi se debe hacer en el publicador - configuracion general 
+ a partir de la cual los subscriptores obtienen su configuracion base 
+
+ -- tabla de los group links SELECT * FROM symmetricds.sym_node_group_link
+
+ # se agrega el nuevo group link - es necesario realizar esta accion siempre que se agregue un nuevo grupo 
+ # Debido a que symmetric trabaja con grupos 
+
+ 
+INSERT INTO symmetricds.sym_node_group_link(source_node_group_id, target_node_group_id, data_event_action, create_time, last_update_by, last_update_time)
+SELECT *
+FROM (
+    VALUES('publicador', 'nodos_pg', 'W', current_timestamp, 'sortiz', current_timestamp)
+     ) GROUPLINK
+    (source_node_group_id, target_note_group_id, data_event_action, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_node_group_link GP
+    WHERE GP.source_node_group_id = GROUPLINK.source_node_group_id
+      AND GP.target_node_group_id = GROUPLINK.target_note_group_id
+      AND GP.data_event_action = GROUPLINK.data_event_action
+);
+
+# se procede a levantar el servicio y symmetric deberia registrar el nodo1 y replicar su configuracion a la base de datos respaldo 
+
+En este punto symmetric va a llenar las tablas en el suscriptor con los datos de configuracion 
+grupos, nodos, etc. 
+
+Hasta este punto solo con la informacion de configuracion de symmetric.
+
+
+
+
+
+

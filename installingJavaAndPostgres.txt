@@ -1,0 +1,52 @@
+# update packages - repository
+-apt update 
+
+#check if java is installed
+- java -version
+
+# if is not installed - Instal java
+-sudo apt install openjdk-11-jdk
+
+# check if is installed
+- java -version
+
+Install postgres
+# update repository
+-sudo apt update  
+
+# check if postgresql-10 exists in the repositories
+-sudo apt-cache search postgresql-10
+
+# if not exists follow the instructions of the following link: 
+https://www.postgresql.org/download/linux/ubuntu/
+
+    # install postgres 
+    -sudo apt-get install postgresql-10
+    -sudo systemctl status postgresql - check if is running correctly
+
+    #create and set a user for postgres 
+    -sudo passwd postgres 
+
+    #sign in as postgres user 
+    su - postgres 
+
+    #get in into the command-line interface 
+    -psql
+
+ # install 
+ -sudo apt install postgresql-10
+
+ # change config file to allow all directions 
+ listen-adress='*'
+
+ # config the authentication
+ -sudo nano /etc/postgresql/10/main/pg_hba.conf
+
+ set the local connection to trust
+
+ # postgres commandline - to open postgres command line
+- psql
+
+
+
+
