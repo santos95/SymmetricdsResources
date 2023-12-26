@@ -1,0 +1,144 @@
+# PRIMERA REPLICACION 
+# Ya se encuentra creado el nodo publicador y un nodo suscriptor y ambos se encuentran conectados
+# La informacion del publicador de configuracion ya se ha replicado al esquema symmetric del suscriptor
+
+# Aqui ya se encuentra configurado, ya que en este punto ya esta replicando symmetric
+# CONCEPTOS A TENER EN CUENTA PARA LAS LLAVES Y CONSTRAINS 
+
+## CONSTRAINS 
+# Los constrains deben definirse unicamente en el origen - Publicador 
+    - Debido que aca se realizan las inserciones/modificaciones de los datos, en ese momento se deben de validar
+      y verificar su integridad a traves de los constrains. 
+    - La replicacion basicamente consiste en realizar copias de los datos en un momento, ya se completa o parcial
+      o sea que los datos que ya fueron validados, por tanto solamente deben de copiarse al destion (suscriptor)
+# Las llaves son usadas por symmetric para verificar si un registro es nuevo o no 
+    - Mediante las llaves symmetric determina si no existe el registro en el destino o bien si se debe actualizar
+    - Respecto a configuraciones de las llaves, restriccciones de identity, autoincremente o sequences que se asignen,
+      solo debe realizarse en el origen 
+      El destino deberan definirse dichos campos como datos primitivos Integer, etc... para asi evitar errores de integridad 
+      al momento de establecerse el id del registro, para evitar tener diferentes id para un mismo registro
+
+
+      # CREACION DE LA TABLA A REPLICAR 
+
+      - La tabla se debe crear con la misma estructura en el origen como en el destino tomando en cuenta los criterios anteriores:
+
+      ## Publicador 
+        -- Creacion de tabla para replicar
+        CREATE TABLE personas(
+            id_persona SERIAL PRIMARY KEY NOT NULL,
+            nombre CHARACTER VARYING(100) NOT NULL,
+            apellido CHARACTER VARYING(100),
+            node_external_id CHARACTER VARYING(50)
+        );
+
+      ## Suscriptor - El serial se elimina para evitar perdida de integridad y las restricciones
+        CREATE TABLE personas(
+                id_persona INTEGER PRIMARY KEY,
+                nombre CHARACTER VARYING(100),
+                apellido CHARACTER VARYING(100),
+                node_external_id CHARACTER VARYING(50)
+            );
+
+        ## una vez creadas las tablas se deben de establecer la configuracion de las tablas para replicar 
+        * ya que no todas las tablas en la base se replican, se deben de especificar asi como los eventos 
+        * que desencadenen el proceso de replicacion de las mismas. 
+
+
+        ## SE DEBE CREAR CONFIGURACION BASICA PARA LA REPLICACION DE LAS TABALS
+        # son tres tablas: sym_trigger, sym_roote y sym_channel
+
+        # channles son utilizados por symmetrics para transmitir los datos 
+        - Ya tiene varios canales por defecto, en nuestro caso creamos un nuevo channel 
+        - Se deben crear channels por tipo de info a replicar, para habilitar la transmision en paralelo
+
+        # trigger 
+        sym_trigger 
+        - En el sym_trigger existe un registro por tabla a replicar 
+        - QUe se encuentre la un registro para una tabla no necesariamente se encuentra replicando 
+        para eso require un route y un registro en sym_trigger_route - cuyo registro si indica si se replica o no
+        - Basicamente se establece el nombre de la tabla en el origen que se va a replicar,
+        el esquema en el que se encuentra, el channel a utilizar asi como los eventos que desencadenene el proceso
+        - sync_on_update, insert and delete and others 
+        -trigger_id - usualmente se utiliza el nombre de la tabla 
+
+        # route - indica como se va a replicar esta tabla - trigger 
+        - Indica como se va a replicar, indicando la tabla y grupo destino, nodo origen asi como sync_update, insert 
+        and delete 
+
+        # finalmente Sym_trigget_route 
+        - une la tabla con la ruta, indicando verdaderamente si se esta replicando o no la tabla 
+
+        sql script 
+        
+-- CONFIGURAR sym_channel
+SELECT * FROM symmetricds.sym_channel;
+
+INSERT INTO symmetricds.sym_channel(channel_id, processing_order, max_batch_size, max_batch_to_send, max_data_to_route,
+                                    description, create_time, last_update_by, last_update_time)
+SELECT
+    *
+FROM (
+    VALUES('catalogos', 100, 1000, 50, 10000, 'Tablas de Catalogo', current_timestamp, 'sortiz', current_timestamp)
+     ) CHANNEL (channel_id, processing_order, max_batch_size, max_batch_to_send, max_data_to_route, description, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_channel CH
+    WHERE CH.channel_id = CHANNEL.channel_id
+);
+
+-- CONFIGURAR THE TRIGGER - LA TABLA
+SELECT * FROM symmetricds.sym_trigger;
+
+INSERT INTO symmetricds.sym_trigger(trigger_id, source_schema_name, source_table_name, channel_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+SELECT *
+FROM (
+    VALUES('personas', 'public', 'personas', 'catalogos', 1, 1, 1, current_timestamp, 'sortiz', current_timestamp)
+     ) TRIGGER_PERSONA (trigger_id, source_schema_name, source_table_name, channel_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_trigger TR
+    WHERE TR.trigger_id = TRIGGER_PERSONA.trigger_id
+);
+
+-- Configurar route - la ruta - la forma de enviar
+SELECT * FROM symmetricds.sym_router;
+
+INSERT INTO symmetricds.sym_router(router_id, target_schema_name, target_table_name, source_node_group_id, target_node_group_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+SELECT
+    *
+FROM (
+    VALUES('publicador2nodos_pg', 'public', 'personas', 'publicador', 'nodos_pg', 1, 1, 1, current_timestamp, 'sortiz', current_timestamp)
+     ) ROUTER_PERSONA (router_id, target_schema_name, target_table_name, source_node_group_id, target_node_group_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_router RT
+    WHERE RT.router_id = ROUTER_PERSONA.router_id
+);
+
+
+-- Establecer configuracion para sym_trigger_router
+SELECT * FROM symmetricds.sym_trigger_router;
+
+
+INSERT INTO symmetricds.sym_trigger_router(trigger_id, router_id, enabled, initial_load_order, create_time, last_update_by, last_update_time)
+SELECT *
+FROM (
+    VALUES('personas', 'publicador2nodos_pg', 1, 100, current_timestamp, 'sortiz', current_timestamp)
+     ) TRRT_PERSONA(trigger_id, router_id, enabled, initial_load_order, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_trigger_router TRR
+    WHERE TRR.trigger_id = TRRT_PERSONA.trigger_id
+      AND TRR.router_id = TRRT_PERSONA.router_id
+)
+
+# A ESTE PUNTO - con esta configuracion symmetric crea 3 triggers en la tabla persona del publicador 
+- para la insercion, update and delete 
+
+# cuando se puede ver que en el origen dado la configuracion anterior 
+  existen los triggers, la tabla ya se encuentra replicando, 
+  asi, en caso de ocurrir uno de los eventos, insert, update or delete 
+  symmetric va a replicar al destino. 
+
+# to test - simply add a new row into personas en el publicador 
