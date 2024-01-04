@@ -130,3 +130,175 @@ VALUES ('John', 'Connor', 100),
        ('Peter', 'Quill', 50);
 
 SELECT * FROM personas;
+
+-- ## AGREGAR NODO2 - Para agregar un nodo a que se replique la tabla personas simplemente se agrega el node
+--    con el id, el grupo a que pertenece y el external id
+--    En caso a que pertenezca a otro grupo, uno nuevo se debe realizar la configuracion para el nuevo grupo,
+--    agregarlo y proseguir a configurar las demas tablas, como routers y demas
+--    En caso de una nueva tabla, se procederia a crear el trigger, router, channel (si utiliza un nuevo channel) y el trigger_router
+
+INSERT INTO symmetricds.sym_node (node_id, node_group_id, external_id)
+SELECT
+    *
+FROM (
+    VALUES('nodo2', 'nodos_pg', 'nodo2')
+     ) NODO1 (node_id, node_group_id, external_id)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_node SN
+    WHERE SN.node_id = NODO1.node_id
+);
+
+SELECT * FROM symmetricds.sym_node;
+
+SELECT * FROM personas;
+
+-- ## AGREGA UN NUEVO CAMPO A LA TABLA PERSONAS
+ALTER TABLE personas
+ADD COLUMN estado BOOL;
+
+SELECT * FROM personas;
+
+INSERT INTO personas(nombre, apellido, node_external_id)
+VALUES ('Itachi', 'Uchiha', 100),
+       ('Tobirama', 'Senju', 50);
+
+SELECT * FROM personas;
+select * from symmetricds.sym_node;
+
+-- Agrega el nuevo campo nombre apellido
+ALTER TABLE personas
+ADD COLUMN nombre_apellido CHARACTER VARYING;
+
+
+-- Setear datos para el nuevo campo nombre_apellido
+WITH personas_name AS (
+    SELECT
+        p.id_persona,
+        concat_ws('', p.nombre, ' ', p.apellido) AS nombre_apellido
+    FROM personas P
+)
+UPDATE personas
+SET nombre_apellido = PN.nombre_apellido
+FROM personas_name PN
+WHERE PN.id_persona = personas.id_persona;
+
+SELECT * FROM personas;
+
+
+INSERT INTO personas(nombre, apellido, node_external_id, estado, nombre_apellido)
+VALUES ('Son', 'Goku', 100, true, 'Son Goku'),
+       ('Matt', 'Murdok', 50, false, 'Matt Murdock');
+
+INSERT INTO personas(nombre, apellido, node_external_id, estado, nombre_apellido)
+VALUES ('Scott', 'Summer', 100, true, 'Scott Summer');
+
+SELECT * FROM personas;
+
+
+--  AGREGAR PARA CONFIGURAR Y REPLICAR AL GRUPO DE MYSQL
+
+-- Agrega el node group
+INSERT INTO symmetricds.sym_node_group(node_group_id)
+SELECT *
+FROM (
+VALUES ('nodos_mdb')
+) GRUPO (node_group_id)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM symmetricds.sym_node_group ng
+    WHERE ng.node_group_id = GRUPO.node_group_id
+);
+
+select * from symmetricds.sym_node_group;
+
+SELECT *
+FROM symmetricds.sym_node;
+
+INSERT INTO symmetricds.sym_node (node_id, node_group_id, external_id)
+SELECT
+    *
+FROM (
+    VALUES('nodo4', 'nodos_mdb', 'nodo4')
+     ) NODO1 (node_id, node_group_id, external_id)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_node SN
+    WHERE SN.node_id = NODO1.node_id
+);
+
+-- SE CREA EL group link para el nuevo grupo
+
+SELECT * FROM symmetricds.sym_node_group_link;
+
+INSERT INTO symmetricds.sym_node_group_link(source_node_group_id, target_node_group_id, data_event_action, create_time, last_update_by, last_update_time)
+SELECT *
+FROM (
+    VALUES('publicador', 'nodos_mdb', 'W', current_timestamp, 'sortiz', current_timestamp)
+     ) GROUPLINK
+    (source_node_group_id, target_note_group_id, data_event_action, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_node_group_link GP
+    WHERE GP.source_node_group_id = GROUPLINK.source_node_group_id
+      AND GP.target_node_group_id = GROUPLINK.target_note_group_id
+      AND GP.data_event_action = GROUPLINK.data_event_action
+);
+
+
+-- Configurar route - la ruta - la forma de enviar
+SELECT * FROM symmetricds.sym_router;
+
+-- configura la ruta con el nuevo grupo
+INSERT INTO symmetricds.sym_router(router_id, target_schema_name, target_table_name, source_node_group_id, target_node_group_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+SELECT
+    *
+FROM (
+    VALUES('publicador2nodos_mdb', '', 'personas', 'publicador', 'nodos_mdb', 1, 1, 1, current_timestamp, 'sortiz', current_timestamp)
+     ) ROUTER_PERSONA (router_id, target_schema_name, target_table_name, source_node_group_id, target_node_group_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_router RT
+    WHERE RT.router_id = ROUTER_PERSONA.router_id
+);
+
+
+-- Establecer configuracion para sym_trigger_router
+SELECT * FROM symmetricds.sym_trigger_router;
+
+
+INSERT INTO symmetricds.sym_trigger_router(trigger_id, router_id, enabled, initial_load_order, create_time, last_update_by, last_update_time)
+SELECT *
+FROM (
+    VALUES('personas', 'publicador2nodos_mdb', 1, 100, current_timestamp, 'sortiz', current_timestamp)
+     ) TRRT_PERSONA(trigger_id, router_id, enabled, initial_load_order, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_trigger_router TRR
+    WHERE TRR.trigger_id = TRRT_PERSONA.trigger_id
+      AND TRR.router_id = TRRT_PERSONA.router_id
+);
+
+-- PROBAR SET ACTIVAR LA CARGA INICIAL PARA ESTE NODO DEBIDO A QUE NO SE REALIZO AUNQUE NO MOSTRO ERROR
+select * from symmetricds.sym_node_security;
+
+-- sym_node_security - tiene informacion de todos los nodos
+-- Tiene atributo - initial_load_enabled - no se recomienda cuando ya lleva tiempo en produccion el nodo que se pretende tocar
+update symmetricds.sym_node_security
+set initial_load_enabled = 1
+where node_id = 'nodo4';
+
+select * from symmetricds.sym_node_security
+where node_id = 'nodo4';
+
+select * from symmetricds.sym_node;
+
+
+INSERT INTO personas(nombre, apellido, node_external_id, estado, nombre_apellido)
+VALUES ('Charles', 'Xavier', 100, true, 'Charles Xavier');
+
+
+INSERT INTO personas(nombre, apellido, node_external_id, estado, nombre_apellido)
+VALUES ('Nagato', 'Uzumaki', 100, true, 'Nagato Uzumaki');
+
+select * from personas;

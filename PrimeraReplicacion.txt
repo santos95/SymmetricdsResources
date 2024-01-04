@@ -46,7 +46,7 @@
 
 
         ## SE DEBE CREAR CONFIGURACION BASICA PARA LA REPLICACION DE LAS TABALS
-        # son tres tablas: sym_trigger, sym_roote y sym_channel
+        # son tres tablas: sym_trigger, sym_router y sym_channel
 
         # channles son utilizados por symmetrics para transmitir los datos 
         - Ya tiene varios canales por defecto, en nuestro caso creamos un nuevo channel 
@@ -142,3 +142,14 @@ WHERE NOT EXISTS(
   symmetric va a replicar al destino. 
 
 # to test - simply add a new row into personas en el publicador 
+
+
+## para agregar un nuevo campos
+- Una manera es 
+1 - Se realiza el alter de la tabla - personas 
+2 - Se realiza el Sync_trigger o se reinicia el servicio de symmetric para que actualiza los triggers
+3 - Se Modifica el esquema de la tabla en los nodos - Hay varias maneras symadmin o alguna forma de aplicarlo
+    - Simplemente se modifica la estructura de la tabla para que sea igual en todos los nodos
+4 - Se realiza la modificacion de los datos - Se actualizan los datos 
+5 - Symmetric actualiza los registros agregar nuevos datos a las filas - nueva(s) columnas
+    - Manda a cola los registros para actualizarlos 

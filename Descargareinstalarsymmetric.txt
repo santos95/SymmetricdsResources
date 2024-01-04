@@ -8,7 +8,7 @@ https://symmetricds.org/
 # once the zip file is in the server
 unzip symmetric...zip 
 
-# move the unzip folter with symmetric into /opt/symmetricds 
+# move the unzip folder with symmetric into /opt/symmetricds 
 sudo mv symmetric-server-3.9.15 /opt.symmetricds 
 
 # at this point all neccesary files are in the server 
@@ -81,10 +81,10 @@ auto.reload=true
  -- Prompt datos del nodo publicador 
 
  # Tablas a tener presente
- SELECT * FROM summetricds.syn_node - informacion del node - nombre, grupo, etc 
- SELECT * FROM symmetricds.syn_node_group - datos de los grupos
- SELECT * FROM symmetricds.syn_node_security - Hash password para autenticadion entre nodos 
- SELECT * FROM symmetricds.syn_node_identity
+ SELECT * FROM symmetricds.sym_node - informacion del node - nombre, grupo, etc 
+ SELECT * FROM symmetricds.sym_node_group - datos de los grupos
+ SELECT * FROM symmetricds.sym_node_security - Hash password para autenticadion entre nodos 
+ SELECT * FROM symmetricds.sym_node_identity
 
 ----------------------------------------------------------------------------------------------------------
  # CONFIGURAR EL PRIMER SUSCRIPTOR
@@ -233,6 +233,9 @@ En este punto symmetric va a llenar las tablas en el suscriptor con los datos de
 grupos, nodos, etc. 
 
 Hasta este punto solo con la informacion de configuracion de symmetric.
+
+
+## Agregar un nodo 4 
 
 
 
