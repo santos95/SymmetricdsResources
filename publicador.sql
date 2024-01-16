@@ -282,6 +282,7 @@ WHERE NOT EXISTS(
 -- PROBAR SET ACTIVAR LA CARGA INICIAL PARA ESTE NODO DEBIDO A QUE NO SE REALIZO AUNQUE NO MOSTRO ERROR
 select * from symmetricds.sym_node_security;
 
+
 -- sym_node_security - tiene informacion de todos los nodos
 -- Tiene atributo - initial_load_enabled - no se recomienda cuando ya lleva tiempo en produccion el nodo que se pretende tocar
 update symmetricds.sym_node_security
@@ -302,3 +303,77 @@ INSERT INTO personas(nombre, apellido, node_external_id, estado, nombre_apellido
 VALUES ('Nagato', 'Uzumaki', 100, true, 'Nagato Uzumaki');
 
 select * from personas;
+
+-- AGREGAR NUEVA TABLA REPLICACION
+
+CREATE TABLE videojuegos(
+  id_videojuego SERIAL PRIMARY KEY NOT NULL,
+  nombre CHARACTER VARYING(100) NOT NULL,
+  categoria CHARACTER VARYING(100) NOT NULL
+);
+
+SELECT * FROM videojuegos;
+
+INSERT INTO videojuegos (nombre, categoria)
+VALUES('LIKE A DRAGON', 'RPG'),
+      ('THE MAN WHO ERASE HIS NAME', 'BEATING UP'),
+      ('RESIDEN EVIL 2 REMAKE', 'SURVIVAL HORROR');
+
+INSERT INTO videojuegos (nombre, categoria)
+VALUES('RESIDENT EVIL 3 REMAKE', 'SURVIVAL HORROR');
+
+
+--CREAR EL TRIGGER
+
+
+-- CONFIGURAR THE TRIGGER - LA TABLA
+SELECT * FROM symmetricds.sym_trigger;
+
+
+-- crea una trigger para la tabla videojuegos
+-- id - videojuegos, usa el channel catalogos
+INSERT INTO symmetricds.sym_trigger(trigger_id, source_schema_name, source_table_name, channel_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+SELECT *
+FROM (
+    VALUES('videojuegos', 'public', 'videojuegos', 'catalogos', 1, 1, 1, current_timestamp, 'sortiz', current_timestamp)
+     ) TRIGGER_PERSONA (trigger_id, source_schema_name, source_table_name, channel_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_trigger TR
+    WHERE TR.trigger_id = TRIGGER_PERSONA.trigger_id
+);
+
+
+--  ## crear ruta para la nueva tabla
+
+    SELECT * FROM symmetricds.sym_router;
+
+-- configura la ruta con el nuevo grupo
+INSERT INTO symmetricds.sym_router(router_id, target_schema_name, target_table_name, source_node_group_id, target_node_group_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+SELECT
+    *
+FROM (
+    VALUES('videojuegos_publicador2nodos_mdb', '', 'videojuegos', 'publicador', 'nodos_mdb', 1, 1, 1, current_timestamp, 'sortiz', current_timestamp),
+          ('videojuegos_publicador2nodos_pg', 'public', 'videojuegos', 'publicador', 'nodos_pg', 1, 1, 1, current_timestamp, 'sortiz', current_timestamp)
+     ) ROUTER_PERSONA (router_id, target_schema_name, target_table_name, source_node_group_id, target_node_group_id, sync_on_update, sync_on_insert, sync_on_delete, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_router RT
+    WHERE RT.router_id = ROUTER_PERSONA.router_id
+);
+
+-- # Configurar trigger router
+INSERT INTO symmetricds.sym_trigger_router(trigger_id, router_id, enabled, initial_load_order, create_time, last_update_by, last_update_time)
+SELECT *
+FROM (
+    VALUES('videojuegos', 'videojuegos_publicador2nodos_mdb', 1, 100, current_timestamp, 'sortiz', current_timestamp),
+          ('videojuegos', 'videojuegos_publicador2nodos_pg', 1, 100, current_timestamp, 'sortiz', current_timestamp)
+     ) TRRT_PERSONA(trigger_id, router_id, enabled, initial_load_order, create_time, last_update_by, last_update_time)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM symmetricds.sym_trigger_router TRR
+    WHERE TRR.trigger_id = TRRT_PERSONA.trigger_id
+      AND TRR.router_id = TRRT_PERSONA.router_id
+);
+
+select * from videojuegos;
