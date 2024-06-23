@@ -23,6 +23,28 @@
 ### PREPARE THE ENVIROMENT FOR REPLICATION - FOR POSTGRES
     sudo psql -U postgres -w -h 127.0.0.1
 
+#### 1 verificar que se encuentra instalado java 
+java -version 
+
+### CONFIGURAR EL AMBIENTE MAESTRO
+### 2 ingresar a la consola de postgres para crear o utilizar la base de datos donde se va a crear el esquema para symmetric
+sudo psql -U postgres -W -h 127.0.0.1
+
+### 3 crear la base de datos - PARA N
+CREATE DATABASE replicacion WITH OWNER = postgres ENCODING='UTF-8';
+
+\l - para listar bases de datos
+\c replicacion - usar la base de datos especificada
+
+### 4 crear el esquema 
+CREATE SCHEMA symmetricds 
+
+### 5 crea el usuario para symmetric 
+CREATE USER symmetric_user LOGIN SUPERUSER ENCRYPTED PASSWORD '123456'; 
+
+### 6 alter para que el usuario por defecto use el esquema symmetric
+ALTER USER symmetric_user SET search_path TO symmetricds;
+
 
 ## CONFIGURE AND ADD MASTER NODE - WE CONFIGURE THE MASTER AND OTHER REQUIRED NODES/ENGINES
     cd /opt/symmetricds/engines

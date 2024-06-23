@@ -1,3 +1,20 @@
+-- ### 3 crear la base de datos - PARA N
+CREATE DATABASE replicacion WITH OWNER = postgres ENCODING='UTF-8';
+
+\l - para listar bases de datos
+\c replicacion - usar la base de datos especificada
+
+-- ### 4 crear el esquema 
+CREATE SCHEMA symmetricds 
+
+-- ### 5 crea el usuario para symmetric 
+CREATE USER symmetric_user LOGIN SUPERUSER ENCRYPTED PASSWORD '123456'; 
+
+-- ### 6 alter para que el usuario por defecto use el esquema symmetric
+ALTER USER symmetric_user SET search_path TO symmetricds;
+
+
+
 --  Publicador
 SELECT * FROM symmetricds.sym_node;
 
