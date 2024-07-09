@@ -67,6 +67,14 @@
     mount -t ext4 /dev/sdb1 /mnt/backups
     mount -o ro -t ext4 /dev/sdb1 /mnt/backups
 
+#### AUTOMATING THE MOUNT PROCESS WITH FSTAB FILE
+    nano /etc/fstab 
+#### The fstab consist of 1 - uuid (device uuid or the device path) 2 - mount point -3 format -4 options -5 dump option - 6 check priority
+    /dev/sdb1 /mnt/backups ext4 default 0 2
+    devicepath mountpoint format options dump check
+
+####
+
 ### FORCE THE LOG ROTATION - THIS CASE FOR THE SPECIFIC POSTGRESQL-COMMON
 logrotate -fv /etc/logrotate.d/postgresql-common
 
