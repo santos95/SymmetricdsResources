@@ -72,6 +72,13 @@
 #### The fstab consist of 1 - uuid (device uuid or the device path) 2 - mount point -3 format -4 options -5 dump option - 6 check priority
     /dev/sdb1 /mnt/backups ext4 default 0 2
     devicepath mountpoint format options dump check
+    UUID=20cad212-2017-45a0-9e55-134ae254a662 /mnt/backups ext4 defaults 0 2
+    UUID=20cad212-2017-45a0-9e55-134ae254a662 /mnt/backups ext4 defaults,noexec,nosuid  0 2
+
+### ONCE WE HAVE EDITED THE FSTAB - MOUNT THE FILESYSTEM LISTED IN THE FSTAB
+    mount -a
+
+### CHECK IF IS MOUNTED - df -h
 
 ####
 
