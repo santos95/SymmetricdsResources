@@ -55,6 +55,12 @@
     mkpart primary ext4 2048s 50000
     name 1 backup 
 
+### to check the free space of a partition - in parted command line:
+    print free 
+
+### create the filesystem into the partition - crates the actual filesystem into the partition
+    sudo mkfs.ext4 /dev/sdb1
+
 ### TO MOUNT A NEW PARTITION 
 #### 1 GET THE PARTITION NAME
     lsblk -f 
@@ -65,7 +71,7 @@
 #### 3 MOUNT THE PARTITION INTO THE SPECIF FOLDER
     mount /dev/sdb1 /mnt/backups
     mount -t ext4 /dev/sdb1 /mnt/backups
-    mount -o ro -t ext4 /dev/sdb1 /mnt/backups
+    mount -o ro -t ext4 /dev/sdb1 /mnt/backups -- readonly permition
 
 #### AUTOMATING THE MOUNT PROCESS WITH FSTAB FILE
     nano /etc/fstab 
@@ -77,10 +83,18 @@
 
 ### ONCE WE HAVE EDITED THE FSTAB - MOUNT THE FILESYSTEM LISTED IN THE FSTAB
     mount -a
+    mount -av
+
+#### You can find the UUID of the partition using this command:
+
+    sudo blkid /dev/sdX1
 
 ### CHECK IF IS MOUNTED - df -h
 
-####
+#### HOW TO EXPAND FILE SYSTEM AND PARTITION - Resizing a filesystem (growing)
+     
+
+
 
 ### FORCE THE LOG ROTATION - THIS CASE FOR THE SPECIFIC POSTGRESQL-COMMON
 logrotate -fv /etc/logrotate.d/postgresql-common
